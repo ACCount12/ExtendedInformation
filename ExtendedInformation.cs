@@ -210,13 +210,10 @@ namespace ExtendedInformation
                             foreach (EffectData effect in mechComponentRef.Def.statusEffects)
                             {
                                 StatisticEffectData statisticData = effect.statisticData;
-                                if (statisticData.targetWeaponSubType == WeaponSubType.Melee)
-                                {
-                                    if (statisticData.statName == "MaxHeat")
-                                        BTStatistics.ApplyEffectStatistic(statisticData, ref max_heat);
-                                    else if (statisticData.statName == "HeatGenerated" && statisticData.targetCollection == StatisticEffectData.TargetCollection.Weapon)
-                                        BTStatistics.ApplyEffectStatistic(statisticData, ref weapon_heat_ratio);
-                                }
+                                if (statisticData.statName == "MaxHeat")
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_heat);
+                                else if (statisticData.statName == "HeatGenerated" && statisticData.targetCollection == StatisticEffectData.TargetCollection.Weapon)
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref weapon_heat_ratio);
                             }
                     }
 
