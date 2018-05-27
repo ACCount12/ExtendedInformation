@@ -378,8 +378,8 @@ namespace ExtendedInformation
         }
     }
 
-    [HarmonyPatch(typeof(BattleTech.UI.MechLabStatBlockWidget), "ExitMechLab")]
-    public static class Patch_BattleTech_UI_MechLabStatBlockWidget_ExitMechLab
+    [HarmonyPatch(typeof(BattleTech.UI.MechLabPanel), "ExitMechLab")]
+    public static class Patch_BattleTech_UI_MechLabPanel_ExitMechLab
     {
         static void Postfix()
         {
