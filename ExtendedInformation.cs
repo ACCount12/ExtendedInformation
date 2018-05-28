@@ -138,7 +138,10 @@ namespace ExtendedInformation
     {
         static void Postfix(object data, ref bool __result, BattleTech.UI.Tooltips.TooltipPrefab_Generic __instance)
         {
-            if (!__result || ModBase.currentMech == null || ModBase.Sim.CurRoomState != DropshipLocation.MECH_BAY)
+            if (!__result || ModBase.currentMech == null)
+                return;
+
+            if ((ModBase.Sim == null || ModBase.Sim.CurRoomState != DropshipLocation.MECH_BAY) && !ModBase.inMechLab)
                 return;
 
             if (ModBase.combatConstants == null)
@@ -370,6 +373,7 @@ namespace ExtendedInformation
     {
         static void Postfix(MechDef mechDef)
         {
+            ModBase.inMechLab = true;
             ModBase.previousMech = ModBase.currentMech;
             ModBase.currentMech = mechDef;
         }
@@ -380,6 +384,7 @@ namespace ExtendedInformation
     {
         static void Postfix()
         {
+            ModBase.inMechLab = false;
             ModBase.currentMech = ModBase.previousMech;
         }
     }
@@ -560,6 +565,7 @@ namespace ExtendedInformation
     {
         public static MechDef currentMech;
         public static MechDef previousMech;
+        public static bool inMechLab = false;
         public static MechBayPanel mechBay;
         public static CombatGameConstants combatConstants;
         public static SimGameState Sim;
