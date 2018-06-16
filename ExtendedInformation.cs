@@ -189,6 +189,9 @@ namespace ModNamespace
                     HeatConstantsDef heatConstants = ModBase.combatConstants.Heat;
 
                     float total_heat_sinking = heatConstants.InternalHeatSinkCount * heatConstants.DefaultHeatSinkDissipationCapacity;
+                    float extra_engine_heat_sinking = BTMechDef.GetExtraEngineSinking(currentMech);
+                    total_heat_sinking += extra_engine_heat_sinking;
+
                     float heat_sinking_ratio = 1;
                     float total_weapon_heat = 0;
                     float weapon_heat_ratio = 1;
@@ -228,6 +231,9 @@ namespace ModNamespace
                     total_heat_sinking *= heat_sinking_ratio;
 
                     extra_stats += string.Format("Heat dissipation: <b>{0}</b>\n", (int)total_heat_sinking);
+
+                    if (extra_engine_heat_sinking > 0f)
+                        extra_stats += "Engine heat sinks: <b>double</b>\n";
 
                     if (total_weapon_heat > 0)
                     {
@@ -584,6 +590,42 @@ namespace ModNamespace
             return jump_distance;
 
         }
+
+
+        // Checks if InternalHeaters mod is installed. Returns extra engine heat sinking capability, if any.
+        private static bool _internalHeatersLoadedChecked = false;
+        private static Assembly _internalHeatersAssembly = null;
+        private const string InternalHeatersAssemblyIndentifier = "InternalHeaters, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+
+        public static float GetExtraEngineSinking(MechDef mech)
+        {
+            if (!_internalHeatersLoadedChecked)
+            {
+                _internalHeatersLoadedChecked = true;
+
+                try
+                {
+                    _internalHeatersAssembly = Assembly.Load(InternalHeatersAssemblyIndentifier);
+                    var method = _internalHeatersAssembly.GetType("InternalHeaters.Calculators").GetMethod("DoubleHeatsinkEngineDissipation");
+                    method.Invoke(null, new object[] { mech, ModBase.combatConstants.Heat });
+                }
+                catch (Exception)
+                {
+                    // If InternalHeaters mod isn't present or isn't functional, just ignore it.
+                    _internalHeatersAssembly = null;
+                }
+            }
+
+            // If InternalHeaters mod is loaded, let it handle the calculations.
+            if (_internalHeatersAssembly != null)
+            {
+                var method = _internalHeatersAssembly.GetType("InternalHeaters.Calculators").GetMethod("DoubleHeatsinkEngineDissipation");
+                return (float)method.Invoke(null, new object[] { mech, ModBase.combatConstants.Heat });
+            }
+
+            return 0;
+        }
+
     }
 
     public static class ModBase
