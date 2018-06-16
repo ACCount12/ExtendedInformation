@@ -11,7 +11,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 
-namespace ExtendedInformation
+namespace ModNamespace
 {
 
     // Display mech tonnage in battle UI
@@ -588,6 +588,7 @@ namespace ExtendedInformation
 
     public static class ModBase
     {
+		public static string modName = "ExtendedInformation";
         public static MechDef currentMech;
         public static MechDef previousMech;
         public static bool inMechLab = false;
@@ -597,7 +598,7 @@ namespace ExtendedInformation
 
         public static void Init()
         {
-            var harmony = HarmonyInstance.Create("org.null.ACCount.ExtendedInformation");
+            var harmony = HarmonyInstance.Create("org.null.ACCount." + modName);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
