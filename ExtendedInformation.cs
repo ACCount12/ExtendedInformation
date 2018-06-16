@@ -193,6 +193,8 @@ namespace ExtendedInformation
                     float total_weapon_heat = 0;
                     float weapon_heat_ratio = 1;
 
+                    float jump_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
+
                     int max_heat = heatConstants.MaxHeat;
 
                     foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
@@ -217,6 +219,8 @@ namespace ExtendedInformation
                                     BTStatistics.ApplyEffectStatistic(statisticData, ref max_heat);
                                 else if (statisticData.statName == "HeatGenerated" && statisticData.targetCollection == StatisticEffectData.TargetCollection.Weapon)
                                     BTStatistics.ApplyEffectStatistic(statisticData, ref weapon_heat_ratio);
+                                else if (statisticData.statName == "JumpDistanceMultiplier")
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref jump_distance);
                             }
                     }
 
@@ -233,7 +237,6 @@ namespace ExtendedInformation
 
                     extra_stats += string.Format("Max heat capacity: <b>{0}</b>\n", (int)max_heat);
 
-                    float jump_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
                     if (jump_distance > 0)
                     {
                         float max_jump_heat = ((jump_distance / heatConstants.JumpHeatUnitSize) + 1) * heatConstants.JumpHeatPerUnit;
@@ -245,12 +248,34 @@ namespace ExtendedInformation
                     break;
 
                 case "TooltipMechPerformanceSpeed":
-                    extra_stats += string.Format("Walk distance: <b>{0}m</b>\n", currentChassis.MovementCapDef.MaxWalkDistance);
-                    extra_stats += string.Format("Sprint distance: <b>{0}m</b>\n", currentChassis.MovementCapDef.MaxSprintDistance);
+                    float max_walk_distance = currentChassis.MovementCapDef.MaxWalkDistance;
+                    float max_sprint_distance = currentChassis.MovementCapDef.MaxSprintDistance;
+                    float max_jump_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
 
-                    float jump_max_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
-                    if (jump_max_distance > 0)
-                        extra_stats += string.Format("Jump distance: <b>{0}m</b>\n", jump_max_distance);
+                    foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
+                    {
+                        if (mechComponentRef.Def == null)
+                            mechComponentRef.RefreshComponentDef();
+
+                        // Various movement effects 
+                        if (mechComponentRef.Def.statusEffects != null)
+                            foreach (EffectData effect in mechComponentRef.Def.statusEffects)
+                            {
+                                StatisticEffectData statisticData = effect.statisticData;
+                                if (statisticData.statName == "WalkSpeed")
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_walk_distance);
+                                else if (statisticData.statName == "RunSpeed")
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_sprint_distance);
+                                else if (statisticData.statName == "JumpDistanceMultiplier")
+                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_jump_distance);
+                            }
+                    }
+
+                    extra_stats += string.Format("Walk distance: <b>{0}m</b>\n", (int)max_walk_distance);
+                    extra_stats += string.Format("Sprint distance: <b>{0}m</b>\n", (int)max_sprint_distance);
+
+                    if (max_jump_distance > 0)
+                        extra_stats += string.Format("Jump distance: <b>{0}m</b>\n", (int)max_jump_distance);
 
                     break;
 
@@ -296,7 +321,7 @@ namespace ExtendedInformation
                             }
 
                         // Calculate support weapon damage
-                        else if (mechComponentRef.Def is WeaponDef weapon && weapon.Category == WeaponCategory.AntiPersonnel)
+                        if (mechComponentRef.Def is WeaponDef weapon && weapon.Category == WeaponCategory.AntiPersonnel)
                         {
                             support_damage += weapon.Damage * weapon.ShotsWhenFired;
                             support_heat += weapon.HeatDamage * weapon.ShotsWhenFired;
@@ -304,12 +329,12 @@ namespace ExtendedInformation
 
                     }
 
-                    extra_stats += string.Format("Melee damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", melee_damage, melee_instability);
+                    extra_stats += string.Format("Melee damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", (int)melee_damage, (int)melee_instability);
 
                     if (BTMechDef.GetJumpJetsAmount(currentMech) > 0)
                     {
-                        extra_stats += string.Format("DFA damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", dfa_damage, dfa_instability);
-                        extra_stats += string.Format("DFA self-damage: <b>{0}</b> ( per leg )\n", dfa_self_damage);
+                        extra_stats += string.Format("DFA damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", (int)dfa_damage, (int)dfa_instability);
+                        extra_stats += string.Format("DFA self-damage: <b>{0}</b> ( per leg )\n", (int)dfa_self_damage);
                     }
 
                     if (support_damage > 0)
