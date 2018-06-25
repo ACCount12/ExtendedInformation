@@ -53,7 +53,7 @@ namespace ModNamespace
     {
         static void Postfix(SGContractsWidget __instance, Contract contract)
         {
-            SimGameState Sim = (SimGameState)ReflectionHelper.GetPrivateProperty(__instance, "Sim");
+            SimGameState Sim = (SimGameState)ReflectionHelper.Helper.GetPrivateProperty(__instance, "Sim");
             
             int MinSalvage = Sim.Constants.Finances.ContractFloorSalvageBonus;
             int MaxSalvage = Sim.Constants.Salvage.DefaultSalvagePotential;
@@ -66,8 +66,8 @@ namespace ModNamespace
             if (MaxSalvage > 0)
                 MaxSalvage = MaxSalvage + MinSalvage;
             
-            TextMeshProUGUI NegSalvageMin = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "NegSalvageMin");
-            TextMeshProUGUI NegSalvageMax = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "NegSalvageMax");
+            TextMeshProUGUI NegSalvageMin = (TextMeshProUGUI)ReflectionHelper.Helper.GetPrivateField(__instance, "NegSalvageMin");
+            TextMeshProUGUI NegSalvageMax = (TextMeshProUGUI)ReflectionHelper.Helper.GetPrivateField(__instance, "NegSalvageMax");
             
 
             NegSalvageMin.text = string.Format("{0} / {1}", Math.Floor(MinSalvage / 4f), MinSalvage);
@@ -91,8 +91,8 @@ namespace ModNamespace
     {
         static void Postfix(MechLabMechInfoWidget __instance)
         {
-            MechLabHardpointElement[] hardpoints = (MechLabHardpointElement[])ReflectionHelper.GetPrivateField(__instance, "hardpoints");
-            MechLabPanel mechLab = (MechLabPanel)ReflectionHelper.GetPrivateField(__instance, "mechLab");
+            MechLabHardpointElement[] hardpoints = (MechLabHardpointElement[])ReflectionHelper.Helper.GetPrivateField(__instance, "hardpoints");
+            MechLabPanel mechLab = (MechLabPanel)ReflectionHelper.Helper.GetPrivateField(__instance, "mechLab");
 
             var all_locations = new List<MechLabLocationWidget>
             {
@@ -119,10 +119,10 @@ namespace ModNamespace
                 totalMissileHardpoints += location.totalMissileHardpoints;
                 totalSmallHardpoints += location.totalSmallHardpoints;
 
-                currentBallisticCount += (int)ReflectionHelper.GetPrivateField(location, "currentBallisticCount");
-                currentEnergyCount += (int)ReflectionHelper.GetPrivateField(location, "currentEnergyCount");
-                currentMissileCount += (int)ReflectionHelper.GetPrivateField(location, "currentMissileCount");
-                currentSmallCount += (int)ReflectionHelper.GetPrivateField(location, "currentSmallCount");
+                currentBallisticCount += (int)ReflectionHelper.Helper.GetPrivateField(location, "currentBallisticCount");
+                currentEnergyCount += (int)ReflectionHelper.Helper.GetPrivateField(location, "currentEnergyCount");
+                currentMissileCount += (int)ReflectionHelper.Helper.GetPrivateField(location, "currentMissileCount");
+                currentSmallCount += (int)ReflectionHelper.Helper.GetPrivateField(location, "currentSmallCount");
             };
 
             hardpoints[0].SetData(WeaponCategory.Ballistic, string.Format("{0}/{1}", currentBallisticCount, totalBallisticHardpoints));
@@ -133,260 +133,7 @@ namespace ModNamespace
         }
     }
 
-    [HarmonyPatch(typeof(BattleTech.UI.Tooltips.TooltipPrefab_Generic), "SetData")]
-    public static class Patch_BattleTech_UI_Tooltips_TooltipPrefab_Generic_SetData
-    {
-        static void Postfix(object data, ref bool __result, BattleTech.UI.Tooltips.TooltipPrefab_Generic __instance)
-        {
-            if (!__result || ModBase.currentMech == null)
-                return;
 
-            if ((ModBase.Sim == null || ModBase.Sim.CurRoomState != DropshipLocation.MECH_BAY) && !ModBase.inMechLab)
-                return;
-
-            if (ModBase.combatConstants == null)
-                ModBase.combatConstants = CombatGameConstants.CreateFromSaved(UnityGameInstance.BattleTechGame);
-
-            MechDef currentMech = ModBase.currentMech;
-            ChassisDef currentChassis = currentMech.Chassis;
-
-            BaseDescriptionDef baseDescriptionDef = (BaseDescriptionDef)data;
-
-            string extra_stats = string.Empty;
-
-            switch (baseDescriptionDef.Id)
-            {
-                case "TooltipMechPerformanceFirepower":
-
-                    float alpha_damage = 0;
-                    float alpha_instability = 0;
-                    float alpha_heat = 0;
-
-                    // Calculate alpha strike total damage, heat damage and instability.
-                    foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
-                    {
-                        if (mechComponentRef.Def is WeaponDef weapon)
-                        {
-                            alpha_damage += weapon.Damage * weapon.ShotsWhenFired;
-                            alpha_instability += weapon.Instability * weapon.ShotsWhenFired;
-                            alpha_heat += weapon.HeatDamage * weapon.ShotsWhenFired;
-                        }
-
-                    }
-
-                    if (alpha_damage > 0)
-                        if(alpha_heat > 0)
-                            extra_stats += string.Format("Alpha strike damage: <b>{0}</b> ( <b>{1} H</b> )\n", alpha_damage, alpha_heat);
-                        else
-                            extra_stats += string.Format("Alpha strike damage: <b>{0}</b>\n", alpha_damage);
-
-                    if(alpha_instability > 0)
-                        extra_stats += string.Format("Alpha strike stability damage: <b>{0}</b>\n", alpha_instability);
-
-                    break;
-
-                case "TooltipMechPerformanceHeat":
-                    HeatConstantsDef heatConstants = ModBase.combatConstants.Heat;
-
-                    float total_heat_sinking = heatConstants.InternalHeatSinkCount * heatConstants.DefaultHeatSinkDissipationCapacity;
-                    float extra_engine_heat_sinking = BTMechDef.GetExtraEngineSinking(currentMech);
-                    total_heat_sinking += extra_engine_heat_sinking;
-
-                    float heat_sinking_ratio = 1;
-                    float total_weapon_heat = 0;
-                    float weapon_heat_ratio = 1;
-
-                    float jump_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
-
-                    int max_heat = heatConstants.MaxHeat;
-
-                    foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
-                    {
-                        if (mechComponentRef.Def == null)
-                            mechComponentRef.RefreshComponentDef();
-
-                        // Weapon total heat
-                        if (mechComponentRef.Def is WeaponDef weapon)
-                            total_weapon_heat += (float)weapon.HeatGenerated;
-
-                        // Heat sink total dissipation
-                        else if (mechComponentRef.Def is HeatSinkDef heat_sink)
-                            total_heat_sinking += heat_sink.DissipationCapacity;
-
-                        // Bank/Exchanger effects 
-                        if (mechComponentRef.Def.statusEffects != null)
-                            foreach (EffectData effect in mechComponentRef.Def.statusEffects)
-                            {
-                                StatisticEffectData statisticData = effect.statisticData;
-                                if (statisticData.statName == "MaxHeat")
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_heat);
-                                else if (statisticData.statName == "HeatGenerated" && statisticData.targetCollection == StatisticEffectData.TargetCollection.Weapon)
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref weapon_heat_ratio);
-                                else if (statisticData.statName == "JumpDistanceMultiplier")
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref jump_distance);
-                            }
-                    }
-
-                    total_weapon_heat *= weapon_heat_ratio;
-                    total_heat_sinking *= heat_sinking_ratio;
-
-                    extra_stats += string.Format("Heat dissipation: <b>{0}</b>\n", (int)total_heat_sinking);
-
-                    if (extra_engine_heat_sinking > 0f)
-                        extra_stats += "Engine heat sinks: <b>double</b>\n";
-
-                    if (total_weapon_heat > 0)
-                    {
-                        extra_stats += string.Format("Alpha strike heat: <b>{0}</b>\n", (int)total_weapon_heat);
-                        extra_stats += string.Format("Alpha strike heat delta: <b>{0}</b>\n", (int)(total_weapon_heat - total_heat_sinking));
-                    }
-
-                    extra_stats += string.Format("Max heat capacity: <b>{0}</b>\n", (int)max_heat);
-
-                    if (jump_distance > 0)
-                    {
-                        float max_jump_heat = ((jump_distance / heatConstants.JumpHeatUnitSize) + 1) * heatConstants.JumpHeatPerUnit;
-                        max_jump_heat *= heatConstants.GlobalHeatIncreaseMultiplier;
-                        max_jump_heat = Mathf.Max(heatConstants.JumpHeatMin, max_jump_heat);
-
-                        extra_stats += string.Format("Max jump heat: <b>{0}</b>\n", (int)max_jump_heat);
-                    }
-                    break;
-
-                case "TooltipMechPerformanceSpeed":
-                    float max_walk_distance = currentChassis.MovementCapDef.MaxWalkDistance;
-                    float max_sprint_distance = currentChassis.MovementCapDef.MaxSprintDistance;
-                    float max_jump_distance = BTMechDef.GetJumpJetsMaxDistance(currentMech);
-
-                    foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
-                    {
-                        if (mechComponentRef.Def == null)
-                            mechComponentRef.RefreshComponentDef();
-
-                        // Various movement effects 
-                        if (mechComponentRef.Def.statusEffects != null)
-                            foreach (EffectData effect in mechComponentRef.Def.statusEffects)
-                            {
-                                StatisticEffectData statisticData = effect.statisticData;
-                                if (statisticData.statName == "WalkSpeed")
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_walk_distance);
-                                else if (statisticData.statName == "RunSpeed")
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_sprint_distance);
-                                else if (statisticData.statName == "JumpDistanceMultiplier")
-                                    BTStatistics.ApplyEffectStatistic(statisticData, ref max_jump_distance);
-                            }
-                    }
-
-                    extra_stats += string.Format("Walk distance: <b>{0}m</b>\n", (int)max_walk_distance);
-                    extra_stats += string.Format("Sprint distance: <b>{0}m</b>\n", (int)max_sprint_distance);
-
-                    if (max_jump_distance > 0)
-                        extra_stats += string.Format("Jump distance: <b>{0}m</b>\n", (int)max_jump_distance);
-
-                    break;
-
-                case "TooltipMechPerformanceMelee":
-                    float melee_damage = currentChassis.MeleeDamage;
-                    float melee_instability = currentChassis.MeleeInstability;
-
-                    float dfa_damage = currentChassis.DFADamage * 2;
-                    float dfa_instability = currentChassis.DFAInstability;
-                    float dfa_self_damage = currentChassis.DFASelfDamage;
-
-                    float support_damage = 0;
-                    float support_heat = 0;
-
-                    foreach (MechComponentRef mechComponentRef in currentMech.Inventory)
-                    {
-                        if (mechComponentRef.Def == null)
-                            mechComponentRef.RefreshComponentDef();
-
-                        // Take Melee/DFA upgrades into account
-                        if (mechComponentRef.Def.statusEffects != null)
-                            foreach(EffectData effect in mechComponentRef.Def.statusEffects)
-                            {
-                                if (effect.effectType != EffectType.StatisticEffect)
-                                    continue;
-
-                                if(effect.statisticData.targetWeaponSubType == WeaponSubType.Melee)
-                                {
-                                    if(effect.statisticData.statName == "DamagePerShot")
-                                        BTStatistics.ApplyEffectStatistic(effect.statisticData, ref melee_damage);
-                                    else if (effect.statisticData.statName == "Instability")
-                                        BTStatistics.ApplyEffectStatistic(effect.statisticData, ref melee_instability);
-                                }
-                                else if(effect.statisticData.targetWeaponSubType == WeaponSubType.DFA)
-                                {
-                                    if (effect.statisticData.statName == "DamagePerShot")
-                                        BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_damage);
-                                    else if (effect.statisticData.statName == "Instability")
-                                        BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_instability);
-                                    else if (effect.statisticData.statName == "DFASelfDamage")
-                                        BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_self_damage);
-                                }
-                            }
-
-                        // Calculate support weapon damage
-                        if (mechComponentRef.Def is WeaponDef weapon && weapon.Category == WeaponCategory.AntiPersonnel)
-                        {
-                            support_damage += weapon.Damage * weapon.ShotsWhenFired;
-                            support_heat += weapon.HeatDamage * weapon.ShotsWhenFired;
-                        }
-
-                    }
-
-                    extra_stats += string.Format("Melee damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", (int)melee_damage, (int)melee_instability);
-
-                    if (BTMechDef.GetJumpJetsAmount(currentMech) > 0)
-                    {
-                        extra_stats += string.Format("DFA damage: <b>{0}</b> ( Stability: <b>{1}</b> )\n", (int)dfa_damage, (int)dfa_instability);
-                        extra_stats += string.Format("DFA self-damage: <b>{0}</b> ( per leg )\n", (int)dfa_self_damage);
-                    }
-
-                    if (support_damage > 0)
-                        if (support_heat > 0)
-                            extra_stats += string.Format("Support weapons damage: <b>{0}</b> ( <b>{1} H</b> )\n", support_damage, support_heat);
-                        else
-                            extra_stats += string.Format("Support weapons damage: <b>{0}</b>\n", support_damage);
-
-                    break;
-                
-                // No idea what to put on those two. Feel free to contribute.
-                case "TooltipMechPerformanceRange":
-                    break;
-
-                case "TooltipMechPerformanceDurability":
-                    break;
-
-            }
-
-            if(extra_stats.Length != 0)
-            {
-                TextMeshProUGUI body = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "body");
-                body.text = string.Format("{0}\n{1}", extra_stats, body.text);
-            }
-
-        }
-    }
-
-    // Keep track of currently selected mech, if any.
-    [HarmonyPatch(typeof(BattleTech.UI.MechBayPanel), "ViewMechStorage")]
-    public static class Patch_BattleTech_UI_MechBayPanel_ViewMechStorage
-    {
-        static void Postfix()
-        {
-            ModBase.currentMech = (MechDef)null;
-        }
-    }
-
-    [HarmonyPatch(typeof(BattleTech.UI.MechBayPanel), "ViewInventory")]
-    public static class Patch_BattleTech_UI_MechBayPanel_ViewInventory
-    {
-        static void Postfix()
-        {
-            ModBase.currentMech = (MechDef)null;
-        }
-    }
 
     [HarmonyPatch(typeof(BattleTech.UI.MechBayMechInfoWidget), "SetDescriptions")]
     public static class Patch_BattleTech_UI_MechBayMechInfoWidget_SetDescriptions
@@ -394,110 +141,266 @@ namespace ModNamespace
         static void Postfix(MechBayMechInfoWidget __instance)
         {
             ModBase.Sim = __instance.sim;
-            ModBase.mechBay = (MechBayPanel)ReflectionHelper.GetPrivateField(__instance, "mechBay");
-            ModBase.currentMech = (MechDef)ReflectionHelper.GetPrivateField(__instance, "selectedMech");
+            if (ModBase.combatConstants == null)
+                ModBase.combatConstants = CombatGameConstants.CreateFromSaved(UnityGameInstance.BattleTechGame);
         }
     }
 
-    [HarmonyPatch(typeof(BattleTech.UI.MechLabStatBlockWidget), "SetData")]
-    public static class Patch_BattleTech_UI_MechLabStatBlockWidget_SetData
+
+    /*
+    [HarmonyPatch(typeof(BattleTech.StatTooltipData), "SetData")]
+    public static class Patch_BattleTech_StatTooltipData_SetData
     {
-        static void Postfix(MechDef mechDef)
+        static void Postfix(MechDef def, BattleTech.StatTooltipData __instance)
         {
-            ModBase.inMechLab = true;
-            ModBase.previousMech = ModBase.currentMech;
-            ModBase.currentMech = mechDef;
+            //
         }
     }
+    */
 
-    [HarmonyPatch(typeof(BattleTech.UI.MechLabPanel), "ExitMechLab")]
-    public static class Patch_BattleTech_UI_MechLabPanel_ExitMechLab
+    [HarmonyPatch(typeof(BattleTech.StatTooltipData), "SetHeatData")]
+    public static class Patch_BattleTech_StatTooltipData_SetHeatData
     {
-        static void Postfix()
+        static bool Prefix()
         {
-            ModBase.inMechLab = false;
-            ModBase.currentMech = ModBase.previousMech;
+            return false;
+        }
+
+        static void Postfix(MechDef def, BattleTech.StatTooltipData __instance)
+        {
+            HeatConstantsDef heatConstants = ModBase.combatConstants.Heat;
+
+            float total_heat_sinking = heatConstants.InternalHeatSinkCount * heatConstants.DefaultHeatSinkDissipationCapacity;
+            float extra_engine_heat_sinking = BTMechDef.GetExtraEngineSinking(def);
+            total_heat_sinking += extra_engine_heat_sinking;
+
+            float heat_sinking_ratio = 1;
+            float total_weapon_heat = 0;
+            float weapon_heat_ratio = 1;
+
+            float jump_distance = BTMechDef.GetJumpJetsMaxDistance(def);
+
+            int max_heat = heatConstants.MaxHeat;
+
+            
+            foreach (MechComponentRef mechComponentRef in def.Inventory)
+            {
+                if (mechComponentRef.Def == null)
+                    mechComponentRef.RefreshComponentDef();
+
+                // Weapon total heat
+                if (mechComponentRef.Def is WeaponDef weapon)
+                    total_weapon_heat += (float)weapon.HeatGenerated;
+
+                // Heat sink total dissipation
+                else if (mechComponentRef.Def is HeatSinkDef heat_sink)
+                    total_heat_sinking += heat_sink.DissipationCapacity;
+
+                // Bank/Exchanger effects 
+                if (mechComponentRef.Def.statusEffects != null)
+                    foreach (EffectData effect in mechComponentRef.Def.statusEffects)
+                    {
+                        StatisticEffectData statisticData = effect.statisticData;
+                        if (statisticData.statName == "MaxHeat")
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref max_heat);
+                        else if (statisticData.statName == "HeatGenerated" && 
+                            (statisticData.targetCollection == StatisticEffectData.TargetCollection.Weapon || BTStatistics.IsWildcardStatistic(statisticData)))
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref weapon_heat_ratio);
+                        else if (statisticData.statName == "JumpDistanceMultiplier")
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref jump_distance);
+                    }
+            }
+
+            total_weapon_heat *= weapon_heat_ratio;
+            total_heat_sinking *= heat_sinking_ratio;
+
+            if (extra_engine_heat_sinking > 0f)
+                __instance.dataList.Add("Heat dissipation", string.Format("{0}\n(DHS)", (int)total_heat_sinking));
+            else
+                __instance.dataList.Add("Heat dissipation", string.Format("{0}", (int)total_heat_sinking));
+
+            if (total_weapon_heat > 0)
+            {
+                __instance.dataList.Add("Alpha strike heat", string.Format("{0}", (int)total_weapon_heat));
+                __instance.dataList.Add("Alpha strike heat delta", string.Format("{0}", (int)(total_weapon_heat - total_heat_sinking)));
+            }
+
+            __instance.dataList.Add("Max heat capacity", string.Format("{0}", (int)max_heat));
+
+            if (jump_distance > 0)
+            {
+                float max_jump_heat = ((jump_distance / heatConstants.JumpHeatUnitSize) + 1) * heatConstants.JumpHeatPerUnit;
+                max_jump_heat *= heatConstants.GlobalHeatIncreaseMultiplier;
+                max_jump_heat = Mathf.Max(heatConstants.JumpHeatMin, max_jump_heat);
+
+                __instance.dataList.Add("Max jump heat", string.Format("{0}", (int)max_jump_heat));
+            }
         }
     }
 
-
-
-    public static class ReflectionHelper
+    [HarmonyPatch(typeof(BattleTech.StatTooltipData), "SetMeleeData")]
+    public static class Patch_BattleTech_StatTooltipData_SetMeleeData
     {
-        public static object InvokePrivateMethode(object instance, string methodname, object[] parameters)
+        static bool Prefix()
         {
-            Type type = instance.GetType();
-            MethodInfo methodInfo = type.GetMethod(methodname, BindingFlags.NonPublic | BindingFlags.Instance);
-            return methodInfo.Invoke(instance, parameters);
+            return false;
         }
 
-        public static object InvokePrivateMethode(object instance, string methodname, object[] parameters, Type[] types)
+        static void Postfix(MechDef def, BattleTech.StatTooltipData __instance)
         {
-            Type type = instance.GetType();
-            MethodInfo methodInfo = type.GetMethod(methodname, BindingFlags.NonPublic | BindingFlags.Instance, null, types, null);
-            return methodInfo.Invoke(instance, parameters);
-        }
+            ChassisDef currentChassis = def.Chassis;
 
-        public static void SetPrivateProperty(object instance, string propertyname, object value)
-        {
-            Type type = instance.GetType();
-            PropertyInfo property = type.GetProperty(propertyname, BindingFlags.NonPublic | BindingFlags.Instance);
-            property.SetValue(instance, value, null);
-        }
+            float melee_damage = currentChassis.MeleeDamage;
+            float melee_instability = currentChassis.MeleeInstability;
 
-        public static object GetPrivateProperty(object instance, string propertyname)
-        {
-            Type type = instance.GetType();
-            PropertyInfo property = type.GetProperty(propertyname, BindingFlags.NonPublic | BindingFlags.Instance);
-            return property.GetValue(instance, new object[] { });
-        }
+            float dfa_damage = currentChassis.DFADamage * 2;
+            float dfa_instability = currentChassis.DFAInstability;
+            float dfa_self_damage = currentChassis.DFASelfDamage;
 
-        public static void SetPrivateProperty(Type type, string propertyname, object value)
-        {
-            PropertyInfo property = type.GetProperty(propertyname, BindingFlags.NonPublic | BindingFlags.Instance);
-            property.SetValue(type, value, null);
-        }
+            float support_damage = 0;
+            float support_instability = 0;
+            float support_heat = 0;
 
-        public static object GetPrivateProperty(Type type, string propertyname)
-        {
-            PropertyInfo property = type.GetProperty(propertyname, BindingFlags.NonPublic | BindingFlags.Instance);
-            return property.GetValue(type, new object[] { });
-        }
+            foreach (MechComponentRef mechComponentRef in def.Inventory)
+            {
+                if (mechComponentRef.Def == null)
+                    mechComponentRef.RefreshComponentDef();
 
-        public static void SetPrivateField(object instance, string fieldname, object value)
-        {
-            Type type = instance.GetType();
-            FieldInfo field = type.GetField(fieldname, BindingFlags.NonPublic | BindingFlags.Instance);
-            field.SetValue(instance, value);
-        }
+                // Take Melee/DFA upgrades into account
+                if (mechComponentRef.Def.statusEffects != null)
+                    foreach (EffectData effect in mechComponentRef.Def.statusEffects)
+                    {
+                        if (effect.effectType != EffectType.StatisticEffect)
+                            continue;
 
-        public static object GetPrivateField(object instance, string fieldname)
-        {
-            Type type = instance.GetType();
-            FieldInfo field = type.GetField(fieldname, BindingFlags.NonPublic | BindingFlags.Instance);
-            return field.GetValue(instance);
-        }
+                        if (effect.statisticData.targetWeaponSubType == WeaponSubType.Melee)
+                        {
+                            if (effect.statisticData.statName == "DamagePerShot")
+                                BTStatistics.ApplyEffectStatistic(effect.statisticData, ref melee_damage);
+                            else if (effect.statisticData.statName == "Instability")
+                                BTStatistics.ApplyEffectStatistic(effect.statisticData, ref melee_instability);
+                        }
+                        else if (effect.statisticData.targetWeaponSubType == WeaponSubType.DFA)
+                        {
+                            if (effect.statisticData.statName == "DamagePerShot")
+                                BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_damage);
+                            else if (effect.statisticData.statName == "Instability")
+                                BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_instability);
+                            else if (effect.statisticData.statName == "DFASelfDamage")
+                                BTStatistics.ApplyEffectStatistic(effect.statisticData, ref dfa_self_damage);
+                        }
+                    }
 
-        public static void SetPrivateField(Type type, string fieldname, object value)
-        {
-            FieldInfo field = type.GetField(fieldname, BindingFlags.NonPublic | BindingFlags.Instance);
-            field.SetValue(type, value);
-        }
+                // Calculate support weapon damage
+                if (mechComponentRef.Def is WeaponDef weapon && weapon.Category == WeaponCategory.AntiPersonnel)
+                {
+                    support_damage += weapon.Damage * weapon.ShotsWhenFired;
+                    support_instability += weapon.Instability * weapon.ShotsWhenFired;
+                    support_heat += weapon.HeatDamage * weapon.ShotsWhenFired;
+                }
 
-        public static object GetPrivateField(Type type, string fieldname)
-        {
-              FieldInfo field = type.GetField(fieldname, BindingFlags.NonPublic | BindingFlags.Instance);
-            return field.GetValue(type);
+            }
+
+            __instance.dataList.Add("Melee damage", ModBase.MakeDamageString(melee_damage, melee_instability));
+
+            if (BTMechDef.GetJumpJetsAmount(def) > 0)
+            {
+                __instance.dataList.Add("DFA damage", ModBase.MakeDamageString(dfa_damage, dfa_instability));
+                __instance.dataList.Add("DFA self-damage", string.Format("{0}x2", (int)dfa_self_damage));
+            }
+
+            string damage_string = ModBase.MakeDamageString(support_damage, support_instability, support_heat);
+            if (!String.IsNullOrEmpty(damage_string))
+                __instance.dataList.Add("Support damage", damage_string);
+
         }
     }
+
+    [HarmonyPatch(typeof(BattleTech.StatTooltipData), "SetFirepowerData")]
+    public static class Patch_BattleTech_StatTooltipData_SetFirepowerData
+    {
+        static bool Prefix()
+        {
+            return false;
+        }
+
+        static void Postfix(MechDef def, BattleTech.StatTooltipData __instance)
+        {
+            float alpha_damage = 0;
+            float alpha_instability = 0;
+            float alpha_heat = 0;
+
+            // Calculate alpha strike total damage, heat damage and instability.
+            foreach (MechComponentRef mechComponentRef in def.Inventory)
+            {
+                if (mechComponentRef.Def is WeaponDef weapon)
+                {
+                    alpha_damage += weapon.Damage * weapon.ShotsWhenFired;
+                    alpha_instability += weapon.Instability * weapon.ShotsWhenFired;
+                    alpha_heat += weapon.HeatDamage * weapon.ShotsWhenFired;
+                }
+
+            }
+
+            string damage_string = ModBase.MakeDamageString(alpha_damage, alpha_instability, alpha_heat);
+            if (!String.IsNullOrEmpty(damage_string))
+                __instance.dataList.Add("Alpha strike damage", damage_string);
+
+        }
+    }
+
+    [HarmonyPatch(typeof(BattleTech.StatTooltipData), "SetMovementData")]
+    public static class Patch_BattleTech_StatTooltipData_SetMovementData
+    {
+        static bool Prefix()
+        {
+            return false;
+        }
+
+        static void Postfix(MechDef def, BattleTech.StatTooltipData __instance)
+        {
+            ChassisDef currentChassis = def.Chassis;
+
+            float max_walk_distance = currentChassis.MovementCapDef.MaxWalkDistance;
+            float max_sprint_distance = currentChassis.MovementCapDef.MaxSprintDistance;
+            float max_jump_distance = BTMechDef.GetJumpJetsMaxDistance(def);
+
+            foreach (MechComponentRef mechComponentRef in def.Inventory)
+            {
+                if (mechComponentRef.Def == null)
+                    mechComponentRef.RefreshComponentDef();
+
+                // Various movement effects 
+                if (mechComponentRef.Def.statusEffects != null)
+                    foreach (EffectData effect in mechComponentRef.Def.statusEffects)
+                    {
+                        StatisticEffectData statisticData = effect.statisticData;
+                        if (statisticData.statName == "WalkSpeed")
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref max_walk_distance);
+                        else if (statisticData.statName == "RunSpeed")
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref max_sprint_distance);
+                        else if (statisticData.statName == "JumpDistanceMultiplier")
+                            BTStatistics.ApplyEffectStatistic(statisticData, ref max_jump_distance);
+                    }
+            }
+
+            __instance.dataList.Add("Walk distance", string.Format("{0}m", (int)max_walk_distance));
+            __instance.dataList.Add("Sprint distance", string.Format("{0}m", (int)max_sprint_distance));
+
+            if (max_jump_distance > 0)
+                __instance.dataList.Add("Jump distance", string.Format("{0}m", (int)max_jump_distance));
+
+        }
+    }
+
 
     public static class BTStatistics
     {
-        public static void ApplyEffectStatistic(StatisticEffectData statistic, ref float cur_value)
+        public static void ApplyEffectStatistic(StatisticEffectData effect, ref float cur_value)
         {
-            float parsed_float = float.Parse(statistic.modValue);
+            float parsed_float = float.Parse(effect.modValue);
 
-            switch (statistic.operation)
+            switch (effect.operation)
             {
                 case StatCollection.StatOperation.Float_Add:
                     cur_value += parsed_float;
@@ -520,12 +423,12 @@ namespace ModNamespace
             }
         }
 
-        public static void ApplyEffectStatistic(StatisticEffectData statistic, ref int cur_value)
+        public static void ApplyEffectStatistic(StatisticEffectData effect, ref int cur_value)
         {
-            float parsed_float = float.Parse(statistic.modValue);
+            float parsed_float = float.Parse(effect.modValue);
             int parsed_int = (int)parsed_float;
 
-            switch (statistic.operation)
+            switch (effect.operation)
             {
                 case StatCollection.StatOperation.Int_Add:
                     cur_value += parsed_int;
@@ -556,6 +459,17 @@ namespace ModNamespace
                     break;
             }
 
+        }
+
+        public static bool IsWildcardStatistic(StatisticEffectData effect)
+        {
+            return 
+                (effect.targetCollection == StatisticEffectData.TargetCollection.NotSet) && 
+                (effect.targetWeaponSubType == WeaponSubType.NotSet) && 
+                (effect.additionalRules == EffectType.NotSet) &&
+                (effect.targetWeaponCategory == WeaponCategory.NotSet) &&
+                (effect.targetWeaponType == WeaponType.NotSet) &&
+                (effect.targetAmmoCategory == AmmoCategory.NotSet);
         }
     }
 
@@ -590,7 +504,6 @@ namespace ModNamespace
             return jump_distance;
 
         }
-
 
         // Checks if InternalHeaters mod is installed. Returns extra engine heat sinking capability, if any.
         private static bool _internalHeatersLoadedChecked = false;
@@ -630,18 +543,33 @@ namespace ModNamespace
 
     public static class ModBase
     {
-		public static string modName = "ExtendedInformation";
-        public static MechDef currentMech;
-        public static MechDef previousMech;
-        public static bool inMechLab = false;
-        public static MechBayPanel mechBay;
+        public static string modName = "ExtendedInformation";
         public static CombatGameConstants combatConstants;
         public static SimGameState Sim;
+        public static Dictionary<string, string> dataList = null;
 
         public static void Init()
         {
             var harmony = HarmonyInstance.Create("org.null.ACCount." + modName);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
+        }
+
+        public static string MakeDamageString(float f_damage, float f_stability = 0, float f_heat = 0)
+        {
+            int damage = (int)f_damage;
+            int stability = (int)f_stability;
+            int heat = (int)f_heat;
+
+            if (heat > 0 && stability > 0)
+                return string.Format("{0}\n{1} S\n{2} H", damage, stability, heat);
+            else if (stability > 0)
+                return string.Format("{0}\n{1} S", damage, stability);
+            else if (heat > 0)
+                return string.Format("{0}\n{1} H", damage, heat);
+            else if (damage > 0)
+                return string.Format("{0}", damage);
+
+            return String.Empty;
         }
 
     }
